@@ -1139,6 +1139,49 @@ static void ReadAnimations(RawModel &raw, FbxScene *pScene)
         FbxAnimStack *pAnimStack = pScene->GetSrcObject<FbxAnimStack>(animIx);
         FbxString animStackName = pAnimStack->GetName();
 
+		/*
+		Try to understand how FbxAnimStacks work so that we can fix my animation problems.
+		*/
+		for (size_t animIx = 0; animIx < animationCount; animIx++) {
+			FbxAnimStack *pAnimStack = pScene->GetSrcObject<FbxAnimStack>(animIx);
+			int layerCount = pAnimStack->GetMemberCount();
+			for (int layerIx = 0; layerIx < layerCount; layerIx++) {
+				FbxObject* layer = pAnimStack->GetMember(layerIx);
+				int srcObjectCount = layer->GetSrcObjectCount();
+				int animCurveNodeCount = layer->GetSrcObjectCount<FbxAnimCurveNode>();
+				if (srcObjectCount != animCurveNodeCount) {
+					fmt:printf("Warning: I don't know what to do when the layer has src objects that aren't FbxAnimCurveNodes!\n");
+					continue;
+				}
+
+				fmt::printf("\n");
+				for (int curveNodeIx = 0; curveNodeIx < srcObjectCount; curveNodeIx++) {
+					FbxAnimCurveNode* animCurveNode = layer->GetSrcObject<FbxAnimCurveNode>(curveNodeIx);
+					int dstPropertyCount = animCurveNode->GetDstPropertyCount();
+					for (int dstPropIx = 0; dstPropIx < dstPropertyCount; dstPropIx++) {
+						FbxProperty dstProp = animCurveNode->GetDstProperty(dstPropIx);
+						fmt::printf("FbxAnimCurveNode %s has dstProperty %s\n", animCurveNode->GetName(), dstProp.GetName());
+					}
+
+					int channelCount = animCurveNode->GetChannelsCount();
+					fmt::printf("FbxAnimCurveNode %s has %i channels.\n", animCurveNode->GetName(), channelCount);
+					for (int cIx = 0; cIx < channelCount; cIx++) {
+						fmt::printf("  Channel %s has %i curves.\n", animCurveNode->GetChannelName(cIx), animCurveNode->GetCurveCount(cIx));
+						for (int curveIx = 0; curveIx < animCurveNode->GetCurveCount(cIx); curveIx++) {
+							FbxAnimCurve* curve = animCurveNode->GetCurve(cIx, curveIx);
+							int curveDstPropCount = curve->GetDstPropertyCount();
+							fmt::printf("    Curve %i has %i dstProperties\n", curveIx, curveDstPropCount);
+							for (int curveDstPropIx = 0; curveDstPropIx < curveDstPropCount; curveDstPropIx++) {
+								FbxObject* obj = curve->GetDstProperty(curveDstPropIx).GetFbxObject();
+								fmt::printf("      %s has ID %i\n", obj->GetName(), obj->GetUniqueID());
+							}
+						}
+					}
+					fmt::printf("\n");
+				}
+			}
+		}
+
         pScene->SetCurrentAnimationStack(pAnimStack);
 
         FbxTakeInfo *takeInfo = pScene->GetTakeInfo(animStackName);
@@ -1182,6 +1225,7 @@ static void ReadAnimations(RawModel &raw, FbxScene *pScene)
 
             RawChannel channel;
             channel.nodeIndex = raw.GetNodeById(pNode->GetUniqueID());
+			fmt::printf("Node %s has ID %i\n", pNode->GetName(), pNode->GetUniqueID());
 
             for (FbxLongLong frameIndex = firstFrameIndex; frameIndex <= lastFrameIndex; frameIndex++) {
                 FbxTime pTime;
